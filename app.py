@@ -24,14 +24,9 @@ EARTH_RADIUS_M = 6_371_008.8
 # Bases e logos hospedados no Supabase Storage.
 # As URLs assinadas podem ser substituídas por st.secrets sem alterar o restante do app.
 DEFAULT_SUPABASE_URL = "https://yyrytggagvfnmimrxace.supabase.co"
-URL_SITES = (
-    "https://yyrytggagvfnmimrxace.supabase.co/storage/v1/object/sign/atc/sites_atc.xlsx"
-    "?token=eyJraWQiOiIyNzcxMmEzNS1iNmJiLTRlYTUtYjlhZS1jN2UzZGE4MjA2MjAiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJhdGMvc2l0ZXNfYXRjLnhsc3giLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkwNzEzMjY4LCJleHAiOjE4NTM3ODUyNjh9.4ROPDVmY7Pabe9pp1Ham8KB0e4aj-FsRXAJVigXQI7qN0pb7RM0usS39A7uw-tKxHNsfHEeGabbWK7DkN6ZLgQ"
-)
-URL_COMPETITORS = (
-    "https://yyrytggagvfnmimrxace.supabase.co/storage/v1/object/sign/atc/competidores_anatel.xlsx"
-    "?token=eyJraWQiOiIyNzcxMmEzNS1iNmJiLTRlYTUtYjlhZS1jN2UzZGE4MjA2MjAiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJhdGMvY29tcGV0aWRvcmVzX2FuYXRlbC54bHN4Iiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc5MDcxMzIwNSwiZXhwIjoxODUzNzg1MjA1fQ.T4iLEncyHMKjpxbzGgLijRcnkYY8bPKvWEHq65FSmayCSCcqZztsftucRSGRTW5-w9o7SmF20Zl7EAgDZMepKg"
-)
+
+URL_SITES = st.secrets["database"]["URL_SITES"]
+URL_COMPETITORS = st.secrets["database"]["URL_COMPETITORS"]
 
 LOGO_FILES = {
     "ATC": "ATC.png",
