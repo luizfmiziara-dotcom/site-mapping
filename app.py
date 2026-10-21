@@ -4,7 +4,9 @@ import base64
 import io
 from functools import lru_cache
 
-import requests
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 
 import contextily as cx
 import matplotlib.pyplot as plt
@@ -21,12 +23,35 @@ st.set_page_config(page_title="Mapa de proximidade", page_icon="🗼", layout="w
 
 EARTH_RADIUS_M = 6_371_008.8
 
-# Bases e logos hospedados no Supabase Storage.
-# As URLs assinadas podem ser substituídas por st.secrets sem alterar o restante do app.
-DEFAULT_SUPABASE_URL = "https://yyrytggagvfnmimrxace.supabase.co"
+# Arquivos privados armazenados no Cloudflare R2.
+R2_BUCKET = "atc-database"
+R2_SITES_KEY = "data/sites_atc.xlsx"
+R2_COMPETITORS_KEY = "data/competidores_anatel.xlsx"
 
-URL_SITES = st.secrets["database"]["URL_SITES"]
-URL_COMPETITORS = st.secrets["database"]["URL_COMPETITORS"]
+
+@st.cache_resource(show_spinner=False)
+def get_r2_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=st.secrets["r2"]["endpoint_url"],
+        aws_access_key_id=st.secrets["r2"]["access_key_id"],
+        aws_secret_access_key=st.secrets["r2"]["secret_access_key"],
+        region_name="auto",
+        config=Config(
+            signature_version="s3v4",
+            connect_timeout=15,
+            read_timeout=120,
+            retries={"max_attempts": 3, "mode": "standard"},
+        ),
+    )
+
+
+def download_r2_file(object_key: str) -> bytes:
+    response = get_r2_client().get_object(Bucket=R2_BUCKET, Key=object_key)
+    try:
+        return response["Body"].read()
+    finally:
+        response["Body"].close()
 
 LOGO_FILES = {
     "ATC": "ATC.png",
@@ -48,12 +73,9 @@ COLORS = {
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def download_public_logo(filename: str) -> bytes | None:
-    url = f"{DEFAULT_SUPABASE_URL}/storage/v1/object/public/logos/{filename}"
     try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        return response.content
-    except requests.RequestException:
+        return download_r2_file(f"logos/{filename}")
+    except (BotoCoreError, ClientError):
         return None
 
 
@@ -82,19 +104,17 @@ def validate_coordinates(df: pd.DataFrame) -> pd.DataFrame:
     return output.loc[valid].copy()
 
 
-@st.cache_data(ttl=3600, show_spinner="Baixando e carregando bases do Supabase...")
+@st.cache_data(ttl=3600, show_spinner="Baixando e carregando bases do Cloudflare R2...")
 def load_data():
-    site_response = requests.get(URL_SITES, timeout=120)
-    competitor_response = requests.get(URL_COMPETITORS, timeout=120)
-    site_response.raise_for_status()
-    competitor_response.raise_for_status()
+    sites_bytes = download_r2_file(R2_SITES_KEY)
+    competitors_bytes = download_r2_file(R2_COMPETITORS_KEY)
 
     sites = pd.read_excel(
-        io.BytesIO(site_response.content),
+        io.BytesIO(sites_bytes),
         dtype={"ID": "string", "Site Name": "string"},
     )
     competitors = pd.read_excel(
-        io.BytesIO(competitor_response.content),
+        io.BytesIO(competitors_bytes),
         dtype={"ID": "string", "Entidade": "string"},
     )
 
@@ -291,13 +311,14 @@ def copy_image_button(png: bytes):
 
 st.title("🗼 Mapa de proximidade e oportunidades")
 st.caption("Pesquise um site existente ou informe uma coordenada para mapear oportunidades futuras.")
-st.caption("Fonte de dados: Supabase Storage")
+st.caption("Fonte de dados: Cloudflare R2")
 
 try:
     sites, competitors = load_data()
 except Exception as error:
-    st.error("Não foi possível carregar as bases do Supabase.")
-    st.exception(error)
+    st.error("Não foi possível carregar as bases do Cloudflare R2.")
+    # Evita expor detalhes internos da conexão e dos dados no app público.
+    print(f"Erro ao carregar bases do R2 ({type(error).__name__}): {error}")
     st.stop()
 
 site_tree = build_tree(tuple(sites["Lat"].to_numpy()), tuple(sites["Lon"].to_numpy()))
